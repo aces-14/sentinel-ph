@@ -3,8 +3,8 @@
 **Project Codename:** Sentinel PH
 **Author:** Reynaldo Ace Pilpil
 **Last Updated:** 11 May 2026
-**Status:** Pre-build / Planning
-**Repository:** _to be created — github.com/aces-14/sentinel-ph_
+**Status:** Phase 1 — Data Ingestion (in progress)
+**Repository:** github.com/aces-14/sentinel-ph
 **Target v1 Demo Date:** As soon as possible
 
 ---
@@ -122,24 +122,33 @@ Ship a deployed, public-facing dengue intelligence platform that demonstrates pr
 
 | # | Dataset | Source | Format | Access Method | Refresh |
 |---|---|---|---|---|---|
-| 1 | DOH Weekly Disease Surveillance Reports | doh.gov.ph/health-statistics | PDF | Scrape index page → download PDFs → parse | Weekly |
-| 2 | WHO WPRO Dengue Updates | who.int/westernpacific (WPRO surveillance) | HTML / PDF | HTTP fetch → parse | Weekly |
-| 3 | Historical weather (daily, per province) | Open-Meteo Archive API | JSON | HTTP API call | Daily |
-| 4 | Current weather conditions | Open-Meteo Forecast API | JSON | HTTP API call | Hourly |
-| 5 | News mentions of dengue (PH) | GDELT 2.0 Doc API | JSON | HTTP API call | Daily |
-| 6 | Google Trends — "dengue" + Filipino terms by region | pytrends library | DataFrame | Python library | Weekly |
-| 7 | PH province / region boundaries | PSA + Geofabrik OpenStreetMap | Shapefile / GeoJSON | One-time download | Static |
-| 8 | PH province population | Philippine Statistics Authority | CSV | One-time download | Annual |
-| 9 | Dengue research papers (PH-specific) | PubMed, Google Scholar, arXiv | PDF | Manual + scripted download | One-time |
-| 10 | DOH dengue guidelines / fact sheets | DOH website | PDF | One-time scrape | Quarterly |
+| 1 | ~~DOH Weekly Disease Surveillance Reports~~ _(dropped — image PDFs, unreliable OCR)_ | — | — | — | — |
+| 2 | **OpenDengue V1.3 — Philippines case counts** _(replaces #1 as primary surveillance dataset)_ | github.com/OpenDengue/master-repo | CSV (ZIP) | One-time download + periodic re-download on new releases | On new OpenDengue release |
+| 3 | WHO WPRO Dengue Updates | who.int/westernpacific (WPRO surveillance) | HTML / PDF | HTTP fetch → parse | Weekly |
+| 4 | Historical weather (daily, per province) | Open-Meteo Archive API | JSON | HTTP API call | Daily |
+| 5 | Current weather conditions | Open-Meteo Forecast API | JSON | HTTP API call | Hourly |
+| 6 | News mentions of dengue (PH) | GDELT 2.0 Doc API | JSON | HTTP API call | Daily |
+| 7 | Google Trends — "dengue" + Filipino terms by region | pytrends library | DataFrame | Python library | Weekly |
+| 8 | PH province / region boundaries | PSA + Geofabrik OpenStreetMap | Shapefile / GeoJSON | One-time download | Static |
+| 9 | PH province population | Philippine Statistics Authority | CSV | One-time download | Annual |
+| 10 | Dengue research papers (PH-specific) | PubMed, Google Scholar, arXiv | PDF | Manual + scripted download | One-time |
+| 11 | DOH dengue guidelines / fact sheets _(text-based PDFs — used for RAG corpus only)_ | DOH website | PDF | One-time download | Quarterly |
 
 ### Notes on each dataset
 
-**1. DOH Surveillance Reports (the central dataset)**
-The most valuable but most painful to acquire. DOH publishes weekly Disease Surveillance Reports as PDFs at `doh.gov.ph/health-statistics`. The PDFs are not perfectly structured — table layouts shift between years, headers move, and some weeks are missing. Plan to spend most of Phase 1 building a robust extraction pipeline. Use pdfplumber for table extraction; fall back to pypdf for raw text where pdfplumber misses. Keep raw PDFs in `data/raw/doh/` and parsed structured output in `data/processed/cases.parquet`. Build a small validation suite that flags weeks where extraction looks suspect (e.g., unusually high or low case counts vs. neighbors).
+**1. DOH Surveillance Reports — DROPPED**
+Originally the central dataset. Dropped after confirming the EDCS Disease Surveillance Report PDFs are image-based (scanned, not text-layer), contain dozens of diseases beyond dengue with no easy programmatic extraction, and would require heavy OCR that is unreliable and compute-intensive. Not feasible for local development or free-tier deployment.
 
-**2. WHO WPRO Updates**
-Cross-validation source. Use to sanity-check DOH parsing.
+**2. OpenDengue V1.3 (the new central dataset)**
+Pre-cleaned, structured global dengue surveillance data maintained by the OpenDengue project. Includes Philippines sub-national case counts. Available as CSV ZIP files at:
+- National extract: `https://github.com/OpenDengue/master-repo/raw/main/data/releases/V1.3/National_extract_V1_3.zip`
+- Spatial (sub-national) extract: `https://github.com/OpenDengue/master-repo/raw/main/data/releases/V1.3/Spatial_extract_V1_3.zip`
+- Temporal extract: `https://github.com/OpenDengue/master-repo/raw/main/data/releases/V1.3/Temporal_extract_V1_3.zip`
+
+Key columns: `adm_0_name`, `adm_1_name`, `adm_2_name` (geography), `calendar_start_date`, `calendar_end_date`, `dengue_total`, `FAO_GAUL_code`. Filter to `adm_0_name == "Philippines"`. Store parsed output in `data/processed/cases.parquet`.
+
+**3. WHO WPRO Updates**
+Cross-validation source. Use to sanity-check case counts from OpenDengue.
 
 **3-4. Open-Meteo**
 Best free weather API for this use case. Endpoint: `https://archive-api.open-meteo.com/v1/era5`. Pull daily temperature, precipitation, and humidity for a representative point in each province (use province centroid). Lag features (1-week, 2-week, 4-week, 8-week lags) are the standard inputs for dengue risk modeling because mosquito reproduction has a temperature- and rain-dependent lifecycle.
@@ -285,11 +294,12 @@ Each phase below includes: **Goal**, **Tools**, **Step-by-step actions**, **Deli
 - Claude Code for writing the parsers
 
 **Step-by-step:**
-1. **Build DOH PDF scraper:**
-   - Crawl the DOH health-statistics index page; extract all PDF URLs.
-   - Download each PDF to `data/raw/doh/YYYY-WW.pdf`.
-   - Build a parser using pdfplumber that extracts the morbidity table per region/province.
-   - Validate: row counts per region should match the totals printed in the report.
+1. **Load OpenDengue case data (replaces DOH PDF scraper):**
+   - Download `Spatial_extract_V1_3.zip` from OpenDengue GitHub and unzip to `data/raw/`.
+   - Filter to Philippines rows (`adm_0_name == "Philippines"`).
+   - Standardize column names, parse dates, compute `epiweek` from `calendar_start_date`.
+   - Store as `data/processed/cases.parquet` with columns: `[province, region, epiweek, year, cases_total]`.
+   - Validate: check for missing weeks, implausible spikes, and ensure province names align with the geographic reference table from step 5.
 2. **Build weather puller:**
    - For each province, compute its centroid (use shapefile from Phase 1 step 5).
    - Hit Open-Meteo Archive API: `https://archive-api.open-meteo.com/v1/era5?latitude=X&longitude=Y&start_date=2016-01-01&end_date=...&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,relative_humidity_2m_mean`.
@@ -318,9 +328,9 @@ Each phase below includes: **Goal**, **Tools**, **Step-by-step actions**, **Deli
 - Notebook (`notebooks/01_eda.ipynb`) doing exploratory plots: cases over time per region, seasonality, weather correlations
 
 **Decision rationale:**
+- *Why OpenDengue instead of DOH PDFs?* The EDCS Disease Surveillance Report PDFs are image-based (scanned), multi-disease, and require OCR that is unreliable and too compute-intensive for local dev. OpenDengue provides the same surveillance data pre-cleaned and structured. The engineering effort goes into analysis, not PDF wrangling.
 - *Why parquet + SQLite, not just CSV?* Parquet is columnar, compressed, and fast for analytical queries. SQLite is a single-file DB that "just works" without setup. Postgres is overkill for v1.
 - *Why Open-Meteo first instead of Copernicus?* Zero friction: no API key, no registration. Get the pipeline working first; swap to ERA5 in v2 if needed.
-- *Why pdfplumber and not LLM extraction?* Reliability. LLMs hallucinate numbers. Use deterministic parsing for the ground-truth dataset. LLMs come in later for unstructured news, not for surveillance numbers.
 
 ---
 
@@ -561,3 +571,13 @@ This document is designed to be read by Claude Code as a project spec. When you 
 
 **End of Project Plan v1**
 *This document will be revised as the project develops. All revisions tracked in Git.*
+
+---
+
+## 11. Revision History
+
+| Date | Version | Change | Reason |
+|---|---|---|---|
+| 11 May 2026 | v1.0 | Initial plan written | Project kickoff |
+| 11 May 2026 | v1.1 | Phase 0 completed — repo cloned, uv environment set up, directory scaffold created, smoke tests passing | Phase 0 done |
+| 11 May 2026 | v1.2 | Primary surveillance dataset changed from DOH PDFs → OpenDengue V1.3 CSV | DOH EDCS reports are image-based PDFs (not text-layer), multi-disease, and require OCR that is unreliable and too compute-intensive for local dev or free-tier deployment. OpenDengue provides equivalent data pre-structured. DOH text-based PDFs (guidelines, fact sheets) retained as RAG corpus source only. |
