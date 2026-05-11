@@ -216,3 +216,18 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Sentinel PH — project data (large files, never commit raw/processed data)
+data/raw/doh/*.pdf
+data/raw/rag_corpus/*.pdf
+data/processed/*.parquet
+data/processed/*.db
+data/*.db
+data/chroma/
+models/*.json
+models/*.ubj
+models/*.pkl
+
+# Keep .gitkeep placeholders
+!data/**/.gitkeep
+!models/.gitkeep
