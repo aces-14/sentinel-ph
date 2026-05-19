@@ -13,7 +13,6 @@ dependencies = [
     "langgraph>=0.2",
     "langchain-community>=0.3",
     "langchain-groq>=0.2",
-    "langchain-chroma>=0.1",
     "langchain-huggingface>=0.1",
     # Vector store & embeddings
     "chromadb>=0.5",

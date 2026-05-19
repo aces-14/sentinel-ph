@@ -16,7 +16,7 @@ class TestRetriever:
 
     def test_load_vectorstore_returns_chroma(self) -> None:
         from src.rag.retriever import load_vectorstore
-        from langchain_chroma import Chroma
+        from langchain_community.vectorstores import Chroma
 
         vs = load_vectorstore()
         assert isinstance(vs, Chroma)
