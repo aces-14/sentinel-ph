@@ -16,7 +16,7 @@ from pathlib import Path
 
 from langchain_community.vectorstores import Chroma
 from langchain_core.documents import Document
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 
 from src.rag.indexer import CHROMA_DIR, COLLECTION_NAME, EMBED_MODEL
 
