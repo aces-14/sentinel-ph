@@ -525,6 +525,7 @@ def _right_explore(cases: pd.DataFrame) -> None:
 
 def _rag_answer(question: str) -> tuple[str, str]:
     """Call the RAG pipeline and return (answer, meta). Safe to call anywhere."""
+    import traceback
     try:
         from src.rag.chat import ask
         res = ask(question)
@@ -534,8 +535,9 @@ def _rag_answer(question: str) -> tuple[str, str]:
             "Could not be fully verified — treat with care"
         )
         return res["answer"], meta
-    except Exception:
-        return "Could not retrieve an answer. Please try again.", ""
+    except Exception as e:
+        traceback.print_exc()  # visible in Streamlit Cloud logs
+        return f"RAG error ({type(e).__name__}): {e}", ""
 
 
 def _right_chat() -> None:
