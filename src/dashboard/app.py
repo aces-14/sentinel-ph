@@ -249,15 +249,6 @@ def _cases_regional() -> pd.DataFrame:
     return df
 
 
-@st.cache_resource
-def _rag_graph():
-    try:
-        from src.rag.chat import build_graph
-        return build_graph()
-    except Exception:
-        return None
-
-
 # ── Seasonal risk ─────────────────────────────────────────────────────────────
 
 @st.cache_data
@@ -554,11 +545,6 @@ def _right_chat() -> None:
         "Answers sourced from WHO guidelines and Philippine health research. "
         "Not a substitute for medical advice."
     )
-
-    graph = _rag_graph()
-    if graph is None:
-        st.warning("Knowledge base unavailable on this deployment.")
-        return
 
     if "chat_messages" not in st.session_state:
         st.session_state.chat_messages = []
