@@ -2,7 +2,7 @@
 
 A multi-agent dengue intelligence platform for the Philippines. SentinelPH ingests 12 years of surveillance data, weather records, news, and Google Trends signal; runs a risk scoring model; generates AI-written situation briefings; and surfaces everything through a public dashboard with a map, trend charts, and a RAG-powered chat interface.
 
-> **Live demo:** *[(link added after deployment)](https://sentinel-ph.streamlit.app/)*
+> **Live demo:** *https://sentinel-ph.streamlit.app/*
 >
 > **Data period:** 2012–2023 — historical records only, not real-time surveillance.
 
