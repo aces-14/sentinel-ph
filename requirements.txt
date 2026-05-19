@@ -1,6 +1,9 @@
 # SentinelPH — Streamlit Community Cloud deployment
 # Python 3.11+
 
+# PyTorch CPU-only — must be at top so pip uses this index for torch resolution
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 # Dashboard
 streamlit>=1.35
 plotly>=6.0
@@ -21,9 +24,6 @@ langgraph>=0.2
 # Vector store & embeddings
 chromadb>=0.5
 sentence-transformers>=3.0
-
-# PyTorch CPU-only (smaller download, no GPU needed for embedding inference)
---extra-index-url https://download.pytorch.org/whl/cpu
 torch
 
 # ML / risk model
