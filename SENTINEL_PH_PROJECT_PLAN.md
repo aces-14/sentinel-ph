@@ -2,8 +2,8 @@
 
 **Project Codename:** Sentinel PH
 **Author:** Reynaldo Ace Pilpil
-**Last Updated:** 11 May 2026
-**Status:** Phase 1 — Data Ingestion (in progress)
+**Last Updated:** 19 May 2026
+**Status:** Phase 4 In Progress — Dashboard v2 redesigned for general public, deployment files ready, awaiting GitHub push + Streamlit Community Cloud connect
 **Repository:** github.com/aces-14/sentinel-ph
 **Target v1 Demo Date:** As soon as possible
 
@@ -294,12 +294,17 @@ Each phase below includes: **Goal**, **Tools**, **Step-by-step actions**, **Deli
 - Claude Code for writing the parsers
 
 **Step-by-step:**
-1. **Load OpenDengue case data (replaces DOH PDF scraper):**
-   - Download `Spatial_extract_V1_3.zip` from OpenDengue GitHub and unzip to `data/raw/`.
-   - Filter to Philippines rows (`adm_0_name == "Philippines"`).
-   - Standardize column names, parse dates, compute `epiweek` from `calendar_start_date`.
-   - Store as `data/processed/cases.parquet` with columns: `[province, region, epiweek, year, cases_total]`.
-   - Validate: check for missing weeks, implausible spikes, and ensure province names align with the geographic reference table from step 5.
+1. **Load OpenDengue case data (replaces DOH PDF scraper) — DONE:**
+   - Downloaded `Spatial_extract_V1_3.zip` from OpenDengue GitHub → saved to `data/raw/opendengue_spatial_v1_3.zip`.
+   - Filtered to Philippines (9,897 rows of 2.8M global rows).
+   - Discovered the Philippines data has three distinct spatial/temporal resolutions (see dataset notes). Adjusted scope to Option B (region-level map + national weekly time series).
+   - Saved three resolution-specific parquet files:
+     - `data/processed/cases_national_weekly.parquet` — 544 rows, 2012–2023, used for risk model + trend charts
+     - `data/processed/cases_regional_annual.parquet` — 224 rows, 1999–2020, used for choropleth map
+     - `data/processed/cases_provincial_monthly.parquet` — 9,060 rows, 1993–2010, historical reference / EDA only
+   - All validated: 0 null cases, 0 null dates, 0 negative values across all three files.
+   - 15 tests written and passing in `tests/test_ingest_opendengue.py`.
+   - Code in `src/ingest/opendengue.py`.
 2. **Build weather puller:**
    - For each province, compute its centroid (use shapefile from Phase 1 step 5).
    - Hit Open-Meteo Archive API: `https://archive-api.open-meteo.com/v1/era5?latitude=X&longitude=Y&start_date=2016-01-01&end_date=...&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,relative_humidity_2m_mean`.
@@ -334,55 +339,69 @@ Each phase below includes: **Goal**, **Tools**, **Step-by-step actions**, **Deli
 
 ---
 
-### Phase 2 — RAG Layer (Weeks 4-6)
+### Phase 2 — RAG Layer (Weeks 4-6) — DONE ✓
+
+**Completed:** 12 May 2026
 
 **Goal:** A working question-answering system that takes a question about dengue, retrieves grounded passages from PH dengue research and DOH guidelines, and produces a citation-backed answer using Groq + LangChain.
 
 **Tools used in this phase:**
-- All work happens **locally** (the chat interface runs on your laptop)
-- LangChain (document loaders, prompt templates, retrieval chains)
-- ChromaDB (local persistent vector store at `data/chroma/`)
-- sentence-transformers `BAAI/bge-small-en-v1.5` for embeddings (CPU is fine)
-- LangGraph (chat workflow with citation enforcement)
-- Groq API (Llama 3.3 70B for the LLM)
-- Claude Code for prompt iteration
+- `langchain-community` — `PyPDFLoader` for PDF text extraction
+- `langchain-text-splitters` — `RecursiveCharacterTextSplitter` (chunk_size=800, overlap=100)
+- `langchain-huggingface` — `HuggingFaceEmbeddings` with `BAAI/bge-small-en-v1.5`
+- `langchain-chroma` — `Chroma` vector store persistence and retrieval
+- `sentence-transformers` — CPU embedding inference backend
+- `langgraph` — `StateGraph` for 3-node citation-enforcement workflow
+- `langchain-groq` — `ChatGroq` with `llama-3.3-70b-versatile`
+- `python-dotenv` — `GROQ_API_KEY` loading from `.env`
 
-**Step-by-step:**
-1. **Assemble RAG corpus:**
-   - Manually curate 30-50 PDFs: PH dengue epidemiology papers, DOH dengue clinical management guidelines, DOH dengue prevention fact sheets, WHO WPRO dengue technical guidance, key academic reviews on PH-specific dengue patterns.
-   - Store in `data/rag_corpus/`.
-2. **Build the indexer:**
-   - LangChain `PyPDFLoader` for each PDF.
-   - `RecursiveCharacterTextSplitter` with chunk size 800 tokens, overlap 100.
-   - Embed with `BAAI/bge-small-en-v1.5`.
-   - Persist to ChromaDB at `data/chroma/`.
-3. **Build the retrieval chain:**
-   - Top-k retrieval with k=5.
-   - Optional: rerank with `BAAI/bge-reranker-base` for better precision.
-4. **Build the LangGraph chat workflow with citation enforcement (extends your Labor Law RAG pattern):**
-   - Node 1: Retrieve passages.
-   - Node 2: Generate answer with explicit instruction to cite passage IDs.
-   - Node 3: Validator — check that every factual claim in the answer maps to a retrieved passage. If not, route back to node 2 with a refinement prompt. Cap at 3 retries.
-5. **Build a CLI chat for testing:**
-   - `python -m src.rag.cli` opens an interactive chat in the terminal. Use this heavily during prompt iteration.
-6. **Write evaluation set:**
-   - 30-50 hand-written question-answer pairs covering: clinical (symptoms, severity), prevention, epidemiology, statistics. For each, label which corpus document(s) the answer should come from.
-   - Run automated eval: retrieval recall, answer factual correctness (use Claude or GPT-4 as a judge for the LLM grading; document this honestly).
+**Step-by-step (completed):**
+1. **Assemble RAG corpus — DONE:**
+   - 8 text-extractable dengue PDFs placed in `data/raw/rag_corpus/`: WHO guidelines (2 docs), WHO surveillance handbook, Timor-Leste clinical guidelines, PH epidemiology papers (3 docs), WHO WPRO situation update.
+2. **Build the indexer — DONE:**
+   - `src/rag/indexer.py` — `PyPDFLoader` → `RecursiveCharacterTextSplitter` → `HuggingFaceEmbeddings` → `Chroma.from_documents()`
+   - Result: 1,617 chunks from 406 pages; persisted to `data/chroma/`
+   - Key fix: `langchain-chroma` and `langchain-huggingface` were not bundled in base `langchain` 0.3+ — installed separately and added to `pyproject.toml`
+3. **Build the retriever — DONE:**
+   - `src/rag/retriever.py` — `load_vectorstore()`, `retrieve(question, vs, k=5)`, `format_passages(docs)` → numbered `[1]...[5]` passage block with `(Source: file.pdf, page N)` headers
+4. **Build the LangGraph chat workflow — DONE:**
+   - `src/rag/chat.py` — `StateGraph` with 3 nodes: `node_retrieve` → `node_generate` → `node_validate`
+   - `node_generate` uses system prompt enforcing inline `[N]` citations; switches to refinement prompt on retry
+   - `node_validate` audits via a strict `PASS`/`FAIL: <reason>` LLM call
+   - Conditional routing: loop back to `node_generate` if invalid and `attempts < MAX_RETRIES (3)`, else `END`
+   - Public API: `ask(question) -> {"answer", "attempts", "valid"}`
+5. **Build CLI chat — DONE:**
+   - `src/rag/cli.py` — `python -m src.rag.cli`; interactive terminal loop with attempt count and citation validity displayed
+6. **Write evaluation set — DONE:**
+   - `src/rag/eval.py` — 30 curated Q&A pairs
+   - Metrics: retrieval recall, answer accuracy (keyword-based), citation rate, avg latency
+   - `python -m src.rag.eval` or `python -m src.rag.eval --questions 10 --save`
 
-**Deliverables for Phase 2:**
-- ChromaDB vector store at `data/chroma/`
-- Working RAG chat module in `src/rag/`
-- Evaluation set + eval report (retrieval recall %, answer accuracy %, hallucination rate %)
-- 1 short writeup or notebook on prompt iterations and what worked
+**Deliverables:**
+- `data/chroma/` — 1,617-chunk ChromaDB vector store (8 PDFs, 406 pages)
+- `src/rag/indexer.py`, `src/rag/retriever.py`, `src/rag/chat.py`, `src/rag/cli.py`, `src/rag/eval.py`
+- `tests/test_rag_retriever.py` (9 tests) + `tests/test_rag_chat.py` (8 tests)
+- **Total test count: 66/66 passing**
+
+**Post-build CLI test results (6 questions):**
+- Correct refusal when information not in corpus (honest "not in passages")
+- Accurate, cited answers for clinical questions (warning signs, incubation period, serotypes)
+- Validator correctly caught speculative language ("likely given because…") — true positive
+- Validator occasionally over-strict on well-cited answers — accepted after 3 retries
+
+**Bugs found and fixed during live testing:**
+- Embedding model reloaded on every question → fixed with `_vectorstore` module-level singleton in `chat.py`
+- "Not in passages" response incorrectly cited all 5 passages → fixed via `SYSTEM_PROMPT` instruction
+- Verbose citation meta-commentary on retry attempts → fixed via `SYSTEM_PROMPT` instruction
 
 **Decision rationale:**
 - *Why bge-small-en over OpenAI embeddings?* Free, local, no API costs, runs fast on CPU.
 - *Why citation enforcement via a separate validator node?* Same reasoning as your Labor Law RAG: smooth-sounding hallucinations are worse than honest "I don't know." The validator is the guardrail.
-- *Why 30-50 PDFs and not 500?* Quality over quantity for v1. A small, high-signal corpus retrieves better than a large noisy one.
+- *Why 8 PDFs and not 30-50?* Quality over quantity for v1. All 8 PDFs are directly relevant, text-extractable, and produced 1,617 high-signal chunks. Corpus can be expanded later.
 
 ---
 
-### Phase 3 — Multi-Agent System + Risk Scoring (Weeks 7-9)
+### Phase 3 — Multi-Agent System + Risk Scoring (Weeks 7-9) — DONE ✓
 
 **Goal:** A LangGraph multi-agent workflow that produces a weekly per-region briefing combining recent case data, weather context, news summaries, and a risk score with confidence interval.
 
@@ -398,23 +417,27 @@ Each phase below includes: **Goal**, **Tools**, **Step-by-step actions**, **Deli
 - Claude Code for writing agent nodes and the model training loop
 
 **Step-by-step:**
-1. **Train the XGBoost risk model:**
-   - Target: log(cases per 100k next week) per province.
-   - Features: case lags (1, 2, 4, 8 weeks back), rolling means, weather lags (temp + precip + humidity at 1, 2, 4, 8 weeks back), Google Trends current and lagged, news mention count, month-of-year, region, El Niño / La Niña phase if available.
-   - Split: temporal cross-validation (train 2016-2022, validate 2023, test 2024-2025). Never random shuffle — that leaks future information.
-   - Metrics: RMSE, MAE, calibration plot, feature importance.
-   - Compare against: (a) naive seasonal baseline (last year same week), (b) ARIMA per province.
-2. **Wrap the model in a Python class:**
-   - `src/model/risk_scorer.py` exposes `predict(province, as_of_date) -> {score, ci_low, ci_high, top_features}`.
-3. **Build the multi-agent workflow in LangGraph:**
-   - **Ingestion Agent:** Pulls latest weekly DOH update, refreshes weather, refreshes news. Writes to DB.
-   - **Extraction Agent:** Parses the latest DOH bulletin into structured cases. Validates against prior weeks; flags anomalies.
-   - **Correlation Agent:** Joins recent cases with weather and news per province. Produces a structured "context object" per region.
-   - **Risk Scoring Agent:** Calls the XGBoost model for each province. Attaches scores and confidence intervals to the context object.
-   - **Briefing Agent:** Generates a per-region narrative briefing using the context object. Required to cite specific data points (e.g., "Cases up 12% week-over-week in Cebu; humidity has been above 80% for 14 consecutive days").
-   - **Evaluator Agent:** Reviews the generated briefing for: (a) factual grounding against the context object, (b) appropriate uncertainty language, (c) absence of medical advice. If any check fails, routes back to the Briefing Agent with corrective feedback. Cap at 3 retries.
-4. **End-to-end weekly run:**
-   - Single command `python -m src.agents.weekly_run` triggers the full workflow and writes outputs to `data/processed/weekly_briefings/{date}/{region}.json`.
+1. **Train the XGBoost risk model — DONE:**
+   - Feature matrix: 535 rows × 25 features built in `src/model/features.py`
+   - Target: `log1p(national_cases)` of the following week
+   - Features: case lags (1, 2, 4, 8 weeks) + 4-week rolling mean, national weather lags (t_max, t_min, precip, rh at lag 1 and 2), Google Trends (dengue/symptoms/fever at current + lag 1), news count, epiweek, month, is_rainy_season
+   - Temporal split: train=390 (2012-2020), val=49 (2021), test=96 (2022-2023)
+   - XGBoost test RMSE: 0.70 (log) / 979 cases — beats naive baseline (RMSE 1.18) and ARIMA (RMSE 1.07) by ~40%
+   - Top features: `cases_lag1`, `cases_roll4`, `cases_lag2`, `weather_rh_lag2`, `weather_precip_lag2`
+   - Artifacts saved: `models/xgb_dengue_risk.joblib`, `models/model_meta.json`
+2. **Wrap the model in a Python class — DONE:**
+   - `src/model/risk_scorer.py` — `RiskScorer.load()`, `predict(as_of_date)` → `{predicted_cases, risk_level, top_drivers, forecast_week}`, `predict_range(start, end)`
+   - Risk levels (tertiles of training predictions): LOW ≤ 7.56 | MEDIUM ≤ 8.27 | HIGH > 8.27 (log scale)
+3. **Build the multi-agent workflow in LangGraph — DONE:**
+   - 4-node LangGraph graph in `src/agents/briefing.py`
+   - `node_build_context` — queries SQLite for cases (WoW/YoY %, 4-week trend), national weather, Google Trends, news count
+   - `node_score_risk` — calls `RiskScorer.predict(as_of_date)`
+   - `node_generate_briefing` — `ChatGroq` with system prompt enforcing specific numbers, hedged language, no medical advice
+   - `node_evaluate_briefing` — audits 3 criteria: DATA_GROUNDING, UNCERTAINTY, NO_MEDICAL; routes back to generate on fail (max 3 retries)
+4. **End-to-end weekly run — DONE:**
+   - `python -m src.agents.weekly_run --date 2023-10-01 --save`
+   - Output: `data/processed/weekly_briefings/{date}/briefing.json`
+   - Live test: 2023-10-01 → 3,142 cases, MEDIUM risk, correct briefing generated and saved
 
 **Deliverables for Phase 3:**
 - Trained XGBoost model + saved artifact in `models/`
@@ -430,7 +453,9 @@ Each phase below includes: **Goal**, **Tools**, **Step-by-step actions**, **Deli
 
 ---
 
-### Phase 4 — Fine-Tuning + Dashboard + Deployment (Weeks 10-12)
+### Phase 4 — Fine-Tuning + Dashboard + Deployment (Weeks 10-12) — In Progress
+
+**Sub-phase 4b (Dashboard + Deployment files): DONE ✓**
 
 **Goal:** Ship the public dashboard, publish the fine-tuned NER model, and produce the open dataset.
 
@@ -469,12 +494,19 @@ For the **dashboard + deployment** (sub-phase 4b):
    - **About / Methodology tab:** How risk scores are computed, data sources, limitations (very important — this is where transparency lives)
 2. Dashboard reads from `data/sentinel.db` and the saved briefings JSONs. The agent workflow is run *offline* (locally or scheduled) and the dashboard just consumes the latest outputs. This keeps Spaces deployment fast and cheap.
 
-**Sub-phase 4c — Deploy to Hugging Face Spaces:**
-1. Create a Space (Streamlit SDK, free CPU tier).
-2. Push the dashboard subdirectory (`src/dashboard/`) plus a copy of the latest data snapshots.
-3. Configure secrets: `GROQ_API_KEY`, `HF_TOKEN`.
-4. First deploy. Iterate on layout.
-5. Once stable, write a deploy script that snapshots fresh data + briefings to the Space repo on a schedule.
+**Sub-phase 4c — Deploy to Streamlit Community Cloud:**
+_(Changed from HF Spaces — user's HF Spaces are at capacity with another project)_
+1. Commit all new source + data files to GitHub (parquets, models, chroma, dashboard, agents, requirements.txt).
+2. Go to `share.streamlit.io` → New App → connect GitHub repo `aces-14/sentinel-ph`.
+3. Set entry point: `src/dashboard/app.py`.
+4. In App Settings → Secrets, paste: `GROQ_API_KEY = "gsk_..."`.
+5. Click Deploy. First boot takes 3-5 min (installs torch CPU + sentence-transformers).
+6. Share the public URL.
+
+**Deployment files ready:**
+- `requirements.txt` — CPU-only torch, all runtime deps pinned
+- `.streamlit/config.toml` — headless server, red theme, no usage stats
+- `.streamlit/secrets.toml.example` — template for the Secrets dashboard
 
 **Sub-phase 4d — Open-source the dataset:**
 1. Clean and version the parsed DOH cases dataset (province × week × cases).
@@ -486,10 +518,11 @@ For the **dashboard + deployment** (sub-phase 4b):
 3. Publish on dev.to or Hashnode. Tag #ai #langchain #healthcare #philippines.
 
 **Deliverables for Phase 4:**
-- Live public dashboard at `huggingface.co/spaces/aces-14/sentinel-ph`
-- Fine-tuned model live at `huggingface.co/aces-14/sentinel-ph-ner-v1`
-- Open dataset at `huggingface.co/datasets/aces-14/ph-dengue-surveillance`
-- Published blog post
+- ~~Live public dashboard at `huggingface.co/spaces/aces-14/sentinel-ph`~~ → **Streamlit Community Cloud** (HF Spaces at capacity)
+- Live public dashboard at `share.streamlit.io` (URL available after deploy)
+- Fine-tuned model live at `huggingface.co/aces-14/sentinel-ph-ner-v1` _(stretch goal)_
+- Open dataset at `huggingface.co/datasets/aces-14/ph-dengue-surveillance` _(stretch goal)_
+- Published blog post + LinkedIn post _(after v1 deploy)_
 - Updated GitHub repo with full README, setup instructions, contribution guide
 
 **Decision rationale:**
@@ -581,3 +614,10 @@ This document is designed to be read by Claude Code as a project spec. When you 
 | 11 May 2026 | v1.0 | Initial plan written | Project kickoff |
 | 11 May 2026 | v1.1 | Phase 0 completed — repo cloned, uv environment set up, directory scaffold created, smoke tests passing | Phase 0 done |
 | 11 May 2026 | v1.2 | Primary surveillance dataset changed from DOH PDFs → OpenDengue V1.3 CSV | DOH EDCS reports are image-based PDFs (not text-layer), multi-disease, and require OCR that is unreliable and too compute-intensive for local dev or free-tier deployment. OpenDengue provides equivalent data pre-structured. DOH text-based PDFs (guidelines, fact sheets) retained as RAG corpus source only. |
+| 11 May 2026 | v1.3 | Scope adjusted from province-level weekly → region-level map + national weekly time series (Option B) | After downloading OpenDengue V1.3 and inspecting the actual Philippines data, province-level data (Admin2) only covers 1993–2010 at monthly resolution. Regional data (Admin1) covers 1999–2020 annually. Only national data (Admin0) is weekly and recent (2012–2023). Adjusted scope accordingly: national weekly for the risk model/time series, regional annual for the map, provincial monthly retained for historical EDA only. Phase 1 Step 1 complete. |
+| 11 May 2026 | v1.4 | Phase 1 complete. All 6 data sources ingested, 49 tests passing, sentinel.db built. | Weather (78,894 rows, 18 regions), news (3,051 GDELT articles), trends (1,777 rows, 4 keywords), GADM geo data (81 province polygons + centroids). Note: GADM level 1 for Philippines = provinces not regions — province→region mapping deferred to Phase 4 for the choropleth map. |
+| 12 May 2026 | v1.5 | Phase 2 (RAG) and Phase 3 (Risk Model + Multi-Agent) complete. | 109/109 tests passing. XGBoost RMSE 0.70 (log) / 979 cases — beats naive and ARIMA by ~40%. Multi-agent briefing workflow (4-node LangGraph) live and tested end-to-end. |
+| 19 May 2026 | v1.6 | Phase 4 sub-phase 4b done: Streamlit dashboard built and tested locally. Deployment files ready. Deployment target changed from HF Spaces → Streamlit Community Cloud (HF Spaces at capacity). | `src/dashboard/app.py` (4 tabs: Overview, Trends, Chat, Briefing). `requirements.txt`, `.streamlit/config.toml`, `.streamlit/secrets.toml.example` created. gitignore updated to allow parquets, model, ChromaDB for deployment. |
+| 19 May 2026 | v1.7 | Dashboard fully redesigned (v2) for general public after user review. | Replaced tabs with sidebar navigation. Removed all technical jargon. Replaced misleading "current cases" metrics (data is from 2023) with honest historical framing. Replaced useless province dot map with regional case bar chart. Added plain-language intro boxes on every page. Added data-age disclaimer throughout. |
+| 19 May 2026 | v1.8 | Dashboard redesigned again (v3) after second user review — realigned with original project plan intent. | Original plan specified risk score as the primary output; v2 had drifted toward a historical stats explorer. v3: (1) Risk banner (HIGH/MODERATE/LOW) is the first content, computed from historical monthly averages. (2) Tagline changed to "Dengue Risk Monitor" — "Surveillance" implied real-time data we don't have. (3) Map switched from dark (`carto-darkmatter`) to light (`carto-positron`) tiles for readability. (4) Latest AI briefing snippet surfaced in main view (was buried in a dialog). (5) Action buttons bar replaced with FAB speed dial — circular shield icon that fans out to icon-only sub-buttons (Chat, Tips, Report) using Material Symbols and CSS `position: fixed`. (6) Stat cards (total historical cases) removed — not actionable. Fixed `go.Scattermap` marker `line` property error (not valid for Scattermap, only Scatter). Fixed `fileWatcherType = "none"` to suppress transformers watcher noise. |
+| 19 May 2026 | v1.9 | Dashboard redesigned (v4) — FAB removed, map overhauled, all features now inline. | FAB was invisible to users and dialogs added unnecessary friction. v4: (1) FAB + `@st.dialog` removed entirely. (2) Three always-visible labeled nav buttons (Ask AI / Prevention Tips / Situation Report) with icons below the main view act as toggles. (3) All three features open inline in a styled `feature-panel` container — no modals. (4) Chat: suggestion pills on first open, `st.container(height=280)` scrollable message history, `st.chat_input` below it. (5) Tips: 5 scannable cards in a 3+2 grid — all content visible at once, no expandables. (6) Report: inline date picker + generate, auto-shows latest cached briefing as a preview. (7) Map overhauled: switched from `carto-positron` (light, clashing with dark UI) to `carto-darkmatter` tiles; added glow-ring trace behind each bubble; region name text labels rendered with `mode="markers+text"`; custom dark `hoverlabel` styling; `displayModeBar=False` for clean embed. |

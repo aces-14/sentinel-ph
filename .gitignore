@@ -217,14 +217,30 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Sentinel PH — project data (large files, never commit raw/processed data)
+# Claude Code session data
+.claude/
+
+# Internal / personal notes — not for public repo
+NOTES_REVIEWER.md
+scripts/linkedin_post.md
+scripts/blog_post.md
+
+# Sentinel PH — raw source files (large, never commit)
 data/raw/doh/*.pdf
 data/raw/rag_corpus/*.pdf
-data/processed/*.parquet
+data/raw/*.zip
+data/raw/geo/*.geojson
+data/raw/geo/*.shp
+data/raw/geo/*.dbf
+data/raw/geo/*.shx
+data/raw/geo/*.prj
+data/raw/geo/*.cpg
+data/raw/geo/*.zip
+
+# Processed data & models — committed for Streamlit Community Cloud deployment
+# (total ~29 MB: parquets 600 KB, SQLite 8.2 MB, ChromaDB 20 MB, model 152 KB)
+# Exclusions: intermediate/debug artifacts only
 data/processed/*.db
-data/*.db
-data/chroma/
-models/*.json
 models/*.ubj
 models/*.pkl
 

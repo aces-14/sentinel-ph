@@ -1,0 +1,71 @@
+{
+  "generated_at": "2026-05-19T13:58:11.671993",
+  "as_of_date": "2023-11-02",
+  "context": {
+    "as_of_date": "2023-11-02",
+    "latest_cases": {
+      "week_start": "2023-10-29",
+      "epiweek": 43,
+      "cases": 3430,
+      "wow_change_pct": 26.1,
+      "yoy_change_pct": -3.9
+    },
+    "four_week_trend": {
+      "weekly_cases": [
+        3318,
+        2578,
+        2720,
+        3430
+      ],
+      "direction": "stable"
+    },
+    "weather_latest_week": {
+      "avg_t_max_c": 28.7,
+      "avg_t_min_c": 22.3,
+      "total_precip_mm": 849.6,
+      "avg_humidity_pct": 85.5
+    },
+    "google_trends_dengue_index": 45,
+    "news_articles_last_4_weeks": 64,
+    "is_rainy_season": true,
+    "month_name": "November",
+    "year": 2023
+  },
+  "risk": {
+    "as_of_date": "2023-11-02",
+    "forecast_week": "2023-11-09",
+    "predicted_cases": 2038,
+    "log_pred": 7.6205,
+    "risk_level": "MEDIUM",
+    "top_drivers": [
+      {
+        "feature": "cases_lag1",
+        "value": 7.9088,
+        "importance": 0.2452
+      },
+      {
+        "feature": "cases_roll4",
+        "value": 7.9811,
+        "importance": 0.2279
+      },
+      {
+        "feature": "cases_lag2",
+        "value": 7.8552,
+        "importance": 0.1381
+      },
+      {
+        "feature": "weather_rh_lag2",
+        "value": 85.9921,
+        "importance": 0.0312
+      },
+      {
+        "feature": "cases_lag8",
+        "value": 8.1865,
+        "importance": 0.031
+      }
+    ]
+  },
+  "briefing": "Surveillance data indicates that the number of dengue cases has increased by 26.1% week-over-week, with 3,430 cases reported in the latest week. This represents a -3.9% change from the same week last year. The four-week trend suggests a stable direction, with weekly cases ranging from 2,578 to 3,430. The latest weather data shows an average maximum temperature of 28.7\u00b0C, an average minimum temperature of 22.3\u00b0C, and a total precipitation of 849.6 mm.\n\nThe model estimates a medium risk level for the upcoming week, with an estimated 2,038 cases. Conditions suggest that the top drivers of this prediction are the lagged case counts, including cases from the previous week, the rolling four-week average of cases, and cases from two and eight weeks ago. The model also considers weather-related factors, such as relative humidity, which had an average value of 85.5% in the latest week.\n\nThe model's prediction of 2,038 cases for the upcoming week is based on the analysis of historical case data and weather patterns. The Google Trends dengue index, which stands at 45, and the number of news articles in the last four weeks, totaling 64, may also be influencing factors. As the country is currently in the rainy season, surveillance data indicates that the risk of dengue transmission remains. The model's estimates should be interpreted with caution, and ongoing monitoring of case trends and weather conditions is necessary to refine the risk assessment.",
+  "attempts": 3,
+  "valid": false
+}

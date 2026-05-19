@@ -1,0 +1,124 @@
+{
+  "feature_columns": [
+    "year",
+    "epiweek",
+    "trend_dengue",
+    "trend_fever",
+    "trend_symptoms",
+    "news_count",
+    "cases_lag1",
+    "cases_lag2",
+    "cases_lag4",
+    "cases_lag8",
+    "cases_roll4",
+    "weather_t_max_lag1",
+    "weather_t_max_lag2",
+    "weather_t_min_lag1",
+    "weather_t_min_lag2",
+    "weather_precip_lag1",
+    "weather_precip_lag2",
+    "weather_rh_lag1",
+    "weather_rh_lag2",
+    "trend_dengue_lag1",
+    "trend_symptoms_lag1",
+    "trend_fever_lag1",
+    "news_count_lag1",
+    "month",
+    "is_rainy_season"
+  ],
+  "train_date_range": [
+    "2013-02-24",
+    "2020-12-27"
+  ],
+  "val_date_range": [
+    "2021-01-03",
+    "2021-12-05"
+  ],
+  "test_date_range": [
+    "2022-01-02",
+    "2023-11-12"
+  ],
+  "risk_thresholds": {
+    "low_max": 7.5563,
+    "medium_max": 8.2651
+  },
+  "top_features": [
+    {
+      "feature": "cases_lag1",
+      "importance": 0.2452
+    },
+    {
+      "feature": "cases_roll4",
+      "importance": 0.2279
+    },
+    {
+      "feature": "cases_lag2",
+      "importance": 0.1381
+    },
+    {
+      "feature": "weather_rh_lag2",
+      "importance": 0.0312
+    },
+    {
+      "feature": "cases_lag8",
+      "importance": 0.031
+    },
+    {
+      "feature": "weather_precip_lag2",
+      "importance": 0.0304
+    },
+    {
+      "feature": "weather_t_min_lag2",
+      "importance": 0.0266
+    },
+    {
+      "feature": "is_rainy_season",
+      "importance": 0.0248
+    },
+    {
+      "feature": "cases_lag4",
+      "importance": 0.0237
+    },
+    {
+      "feature": "trend_fever",
+      "importance": 0.0219
+    }
+  ],
+  "metrics": {
+    "xgb_val": {
+      "label": "XGB-val",
+      "rmse_log": 0.1661,
+      "mae_log": 0.1358,
+      "rmse_cases": 281.2,
+      "mae_cases": 218.4
+    },
+    "xgb_test": {
+      "label": "XGB-test",
+      "rmse_log": 0.7024,
+      "mae_log": 0.4579,
+      "rmse_cases": 978.7,
+      "mae_cases": 768.0
+    },
+    "naive_val": {
+      "label": "Naive-val",
+      "rmse_log": 0.7456,
+      "mae_log": 0.6523,
+      "rmse_cases": 2165.7,
+      "mae_cases": 1694.5
+    },
+    "naive_test": {
+      "label": "Naive-test",
+      "rmse_log": 1.182,
+      "mae_log": 0.8612,
+      "rmse_cases": 2580.7,
+      "mae_cases": 1998.1
+    },
+    "arima_test": {
+      "label": "ARIMA-test",
+      "rmse_log": 1.0715,
+      "mae_log": 0.8618,
+      "rmse_cases": 2908.0,
+      "mae_cases": 2002.8
+    }
+  }
+}

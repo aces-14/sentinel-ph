@@ -1,0 +1,71 @@
+{
+  "generated_at": "2026-05-19T09:24:38.166155",
+  "as_of_date": "2023-10-01",
+  "context": {
+    "as_of_date": "2023-10-01",
+    "latest_cases": {
+      "week_start": "2023-10-01",
+      "epiweek": 39,
+      "cases": 3142,
+      "wow_change_pct": -1.2,
+      "yoy_change_pct": -18.7
+    },
+    "four_week_trend": {
+      "weekly_cases": [
+        3356,
+        3393,
+        3179,
+        3142
+      ],
+      "direction": "falling"
+    },
+    "weather_latest_week": {
+      "avg_t_max_c": 28.9,
+      "avg_t_min_c": 23.0,
+      "total_precip_mm": 654.6,
+      "avg_humidity_pct": 84.5
+    },
+    "google_trends_dengue_index": 43,
+    "news_articles_last_4_weeks": 29,
+    "is_rainy_season": true,
+    "month_name": "October",
+    "year": 2023
+  },
+  "risk": {
+    "as_of_date": "2023-10-01",
+    "forecast_week": "2023-10-08",
+    "predicted_cases": 3675,
+    "log_pred": 8.2096,
+    "risk_level": "MEDIUM",
+    "top_drivers": [
+      {
+        "feature": "cases_lag1",
+        "value": 8.0646,
+        "importance": 0.2452
+      },
+      {
+        "feature": "cases_roll4",
+        "value": 8.1249,
+        "importance": 0.2279
+      },
+      {
+        "feature": "cases_lag2",
+        "value": 8.1298,
+        "importance": 0.1381
+      },
+      {
+        "feature": "weather_rh_lag2",
+        "value": 87.9762,
+        "importance": 0.0312
+      },
+      {
+        "feature": "cases_lag8",
+        "value": 6.5737,
+        "importance": 0.031
+      }
+    ]
+  },
+  "briefing": "Surveillance data indicates that as of October 1, 2023, there were 3142 reported dengue cases, representing a 1.2% decrease from the previous week and an 18.7% decrease from the same week last year. The four-week trend suggests a falling direction, with weekly cases at 3356, 3393, 3179, and 3142. Weather conditions for the latest week showed an average maximum temperature of 28.9\u00b0C, an average minimum temperature of 23.0\u00b0C, total precipitation of 654.6 mm, and an average humidity of 84.5%.\n\nThe model estimates that the top drivers of dengue risk are lagged case counts, including cases from the previous week, a four-week rolling average of cases, and cases from two and eight weeks prior. Additionally, the model considers weather-related factors, such as relative humidity from two weeks ago. The Google Trends dengue index is at 43, and there have been 29 news articles related to dengue in the last four weeks. Conditions suggest that the current rainy season may contribute to the dengue situation.\n\nThe model predicts 3675 cases for the forecast week starting October 8, 2023, and estimates the risk level to be MEDIUM. The top drivers of this prediction are primarily related to recent case counts, with cases from the previous week being the most important factor, followed by the four-week rolling average of cases. The model's estimate of MEDIUM risk level should be considered in the context of ongoing surveillance and monitoring of dengue cases, as well as weather and other environmental factors that may influence the disease's spread.",
+  "attempts": 3,
+  "valid": false
+}
