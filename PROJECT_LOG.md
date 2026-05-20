@@ -703,9 +703,56 @@ build_context → score_risk → generate_briefing → evaluate_briefing
 
 ---
 
-### Pending Steps
+### Step 5 — Deployment Debugging
 
-- **Sub-phase 4a — Fine-tuning** (stretch goal): Llama 3.2 1B on Filipino dengue health text, Google Colab T4, push to HF Hub at `aces-14/sentinel-ph-ner-v1`
-- **Sub-phase 4c — Deploy**: User commits all new files → push to GitHub → connect repo to Streamlit Community Cloud → set entry point to `src/dashboard/app.py` → add `GROQ_API_KEY` in Secrets dashboard
-- **Sub-phase 4d — Open-source dataset**: Push cleaned parquets to HF Datasets as `aces-14/ph-dengue-surveillance`
-- **Sub-phase 4e — Blog post + LinkedIn**: Drafts prepared in `scripts/linkedin_post.md` and `scripts/blog_post.md`
+**Status:** DONE
+
+**What happened**
+
+After deploying to Streamlit Community Cloud the Ask AI panel showed either "Knowledge base unavailable on this deployment" or, after that guard was removed, "Could not retrieve an answer."
+
+**Root cause 1 — Dead RAG guard**
+`_rag_graph()` in `app.py` was a `@st.cache_resource` function that caught all exceptions silently and returned `None`. The function's return value was stored in `graph` but never actually used for answering — all RAG calls went through `_rag_answer()` which had its own try/except. The `if graph is None: return` guard blocked the entire chat panel unnecessarily.
+**Fix:** Removed `_rag_graph()` entirely and removed the guard from `_right_chat()`.
+
+**Root cause 2 — `langchain-chroma` and `langchain-huggingface` not installing**
+Both packages consistently failed to install on Streamlit Community Cloud despite being listed in requirements.txt. The `--extra-index-url https://download.pytorch.org/whl/cpu` directive placed mid-file compounded the issue — pip's resolver behaved inconsistently when the extra index appeared after some packages had already been listed.
+
+Diagnosis method: replaced the generic `except Exception: pass` in `_rag_answer()` with `except Exception as e: return f"RAG error ({type(e).__name__}): {e}", ""` — this exposed `ModuleNotFoundError: No module named 'langchain_chroma'` then `ModuleNotFoundError: No module named 'langchain_huggingface'` in sequence.
+
+**Fix:**
+- Migrated all `from langchain_chroma import Chroma` → `from langchain_community.vectorstores import Chroma`
+- Migrated all `from langchain_huggingface import HuggingFaceEmbeddings` → `from langchain_community.embeddings import HuggingFaceEmbeddings`
+- Removed both split packages from `requirements.txt` and `pyproject.toml`
+- Moved `--extra-index-url` to top of `requirements.txt` (correct placement for a global pip option)
+
+**Files changed:** `src/rag/retriever.py`, `src/rag/indexer.py`, `tests/test_rag_retriever.py`, `src/dashboard/app.py`, `requirements.txt`, `pyproject.toml`
+
+**Lesson:** On Streamlit Community Cloud, prefer well-established `langchain-community` integrations over newer split packages (`langchain-chroma`, `langchain-huggingface`). The split packages work fine locally but have consistent install failures in Streamlit's build environment. Always add temporary diagnostic error exposure (`type(e).__name__`) when debugging silent cloud failures.
+
+---
+
+## Version 2
+
+**Started:** 20 May 2026
+
+---
+
+### v2 Phase 1 — Data Integrity + UX Honesty
+
+**Status:** DONE
+**Completed:** 20 May 2026
+
+**What changed**
+
+| Fix | Detail |
+|---|---|
+| Header data badge | "Based on 2012–2023 surveillance data" → "National 2012–2023 · Regional 1999–2020" — reflects that two different OpenDengue datasets are in use |
+| Map section label | "Regional Dengue Burden · 1999–2020" → "Regional Burden · OpenDengue 1999–2020" — source attribution added |
+| Map hover tooltip | Clarified to "Total cases 1999–2020 (regional annual)" — removes ambiguity about what period the data covers |
+| Briefing section label | "Latest AI Briefing" → "Latest Recorded Briefing" — removes implication of live/current data |
+| Briefing framing | Amber notice added: "Week of 2023-10-01 — historical record, not live data" |
+| Briefing card | Replaced static 240-char snippet with `st.expander` — collapsed by default, click to read full briefing text. Dark-themed CSS applied. |
+| Date extraction | Briefing week date now pulled from `context.as_of_date` (the actual week of analysis) rather than `generated_at` (when the JSON was written) |
+
+**Files changed:** `src/dashboard/app.py`

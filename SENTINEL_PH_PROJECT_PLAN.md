@@ -2,10 +2,10 @@
 
 **Project Codename:** Sentinel PH
 **Author:** Reynaldo Ace Pilpil
-**Last Updated:** 19 May 2026
-**Status:** Phase 4 In Progress — Dashboard v2 redesigned for general public, deployment files ready, awaiting GitHub push + Streamlit Community Cloud connect
+**Last Updated:** 20 May 2026
+**Status:** v1 DEPLOYED on Streamlit Community Cloud — v2 in progress (Phase 1 complete)
 **Repository:** github.com/aces-14/sentinel-ph
-**Target v1 Demo Date:** As soon as possible
+**Target v1 Demo Date:** SHIPPED
 
 ---
 
@@ -530,6 +530,83 @@ _(Changed from HF Spaces — user's HF Spaces are at capacity with another proje
 - *Why Unsloth?* Most memory-efficient open-source fine-tuning library. Fits where vanilla HuggingFace Transformers won't.
 - *Why deploy on HF Spaces and not Render/Fly/etc?* Free CPU tier, integrates with HF Hub for model loading, AI community sees Space pages, single-platform story.
 - *Why precompute briefings offline rather than generate live?* Cost (LLM calls) and latency. The dashboard becomes a fast viewer of recent outputs; the heavy work happens in the agent workflow that you trigger yourself or on a schedule.
+
+---
+
+---
+
+## 7b. Version 2 — The "Wow" Upgrade
+
+**Status:** In Progress
+**Started:** 20 May 2026
+**Goal:** Transform SentinelPH from a competent data app into a portfolio centrepiece. The core problem with v1: the XGBoost model — the most technically impressive artefact — is invisible to anyone using the dashboard. The multi-signal fusion (5 data sources) is the engineering story but the UI never shows it. v2 fixes both.
+
+---
+
+### v2 Phase 1 — Data Integrity + UX Honesty — DONE ✓
+
+**Completed:** 20 May 2026
+
+**Problems fixed:**
+
+| Problem | Root cause | Fix |
+|---|---|---|
+| Map said "1999–2020", header said "2012–2023" | Two different datasets in use — regional annual (OpenDengue 1999–2020) and national weekly (OpenDengue 2012–2023). Nowhere communicated to the user | Header badge split: "National 2012–2023 · Regional 1999–2020". Map label updated to "Regional Burden · OpenDengue 1999–2020". Hover tooltip clarified. |
+| "Latest AI Briefing" implied live/current data | Cached briefing for week of 2023-10-01 presented without a clear historical frame | Renamed to "Latest Recorded Briefing". Amber notice: "Week of 2023-10-01 — historical record, not live data." |
+| Briefing truncated to 240 chars with no way to read the rest | Snippet-only design with no expand mechanism | Replaced with `st.expander` — collapsed by default, click to read full text. Dark-themed CSS applied. |
+| `langchain-chroma` and `langchain-huggingface` not installing on Streamlit Cloud | Split packages consistently failed to resolve on Streamlit Community Cloud's pip; `--extra-index-url` for torch mid-file compounded the issue | Migrated all imports to `langchain_community.vectorstores.Chroma` and `langchain_community.embeddings.HuggingFaceEmbeddings`. Removed both split packages from requirements.txt and pyproject.toml. Moved `--extra-index-url` to top of requirements.txt. |
+| RAG chat showed "Knowledge base unavailable" blocking the entire panel | `_rag_graph()` swallowed all exceptions silently; its return value was never used for answering | Removed the dead guard entirely. `_rag_answer()` already has its own try/except and handles failures gracefully. |
+
+**Files changed:** `src/dashboard/app.py`, `src/rag/retriever.py`, `src/rag/indexer.py`, `tests/test_rag_retriever.py`, `requirements.txt`, `pyproject.toml`
+
+---
+
+### v2 Phase 2 — Forecast Intelligence Panel (replaces Report)
+
+**Status:** Planned
+
+**Goal:** Make the XGBoost model visible. The Report tab generated AI text as a proxy for the model's output. This phase exposes the model directly.
+
+**What's being built:**
+- Replace the "Report" nav button with "Forecast"
+- Run `RiskScorer.predict(latest_date)` on load (cached) — display next-week predicted cases and risk level prominently
+- Show risk trajectory: predicted vs. actual over the last 8 weeks (line chart with forecast extension)
+- Top 3 signal drivers displayed as labelled bars ("Cases (lag 1 week): 2,543 — dominant driver", "Rainfall (lag 2 wk): 312mm", "Search interest: 61")
+- All clearly labelled as historical model output, not live prediction
+
+**Why this is the "wow":** Most ML portfolio projects hide the model behind an API response. Showing feature importances + a visible forecast with data labels demonstrates end-to-end ML engineering: data pipeline → feature engineering → trained model → interpretable output surfaced in UI.
+
+---
+
+### v2 Phase 3 — Custom Philippine Choropleth Map
+
+**Status:** Planned
+
+**Goal:** Replace the scatter bubble map with a filled choropleth of all 17 administrative regions.
+
+**What's being built:**
+- A simplified region-level GeoJSON for the Philippines sourced from a reliable public CDN (GADM or PSA), committed to `data/processed/ph_regions.geojson`
+- Plotly choropleth (`go.Choropleth` or `go.Choroplethmapbox`) coloring regions by historical case burden
+- Click a region → right panel switches to that region's annual case trend (bar chart over 1999–2020)
+- Each region colour-coded LOW / MODERATE / HIGH based on its total burden relative to national average
+
+**Why this is the "wow":** Visually, a filled map of the Philippines is immediately more striking than scatter bubbles. Technically, it demonstrates GIS skills (GeoJSON processing, boundary rendering, coordinate reference systems) on top of everything else.
+
+---
+
+### v2 Phase 4 — Signal Monitor Panel (replaces Explore Data)
+
+**Status:** Planned
+
+**Goal:** Show all five data streams on a single aligned timeline — making the multi-source intelligence fusion visible.
+
+**What's being built:**
+- Four mini sparklines stacked vertically on the same x-axis (epiweek): weekly cases, national rainfall, Google Trends dengue interest, GDELT news article count
+- Shared rainy-season shading (Jun–Nov)
+- A single year-range slider controlling all four charts simultaneously
+- "Why these signals?" tooltip explaining each source
+
+**Why this is the "wow":** The engineering achievement of SentinelPH is fusing 5 datasets. The Signal Monitor is the panel that makes that visible in 4 seconds. It's also the most technically honest part of the dashboard — showing the raw signals that feed the model, not just the model's outputs.
 
 ---
 

@@ -102,10 +102,10 @@ _REGION_SHORT: dict[str, str] = {
 
 # ── Nav config ────────────────────────────────────────────────────────────────
 _NAV = [
-    ("explore", ":material/bar_chart:",        "Explore Data"),
-    ("chat",    ":material/chat:",             "Ask AI"),
-    ("tips",    ":material/health_and_safety:","Prevention"),
-    ("report",  ":material/lab_research:",     "Report"),
+    ("explore",  ":material/bar_chart:",         "Explore Data"),
+    ("chat",     ":material/chat:",              "Ask AI"),
+    ("tips",     ":material/health_and_safety:", "Prevention"),
+    ("forecast", ":material/trending_up:",       "Forecast"),
 ]
 
 
@@ -222,6 +222,7 @@ div[data-testid="stHorizontalBlock"] .stButton button {{
     border-radius:10px !important;
 }}
 
+
 /* ── Footer ── */
 .footer {{
     font-size:0.58rem; color:{P["muted"]};
@@ -234,6 +235,15 @@ div[data-testid="stHorizontalBlock"] .stButton button {{
 
 
 # ── Data loaders ──────────────────────────────────────────────────────────────
+
+@st.cache_resource
+def _load_scorer():
+    try:
+        from src.model.risk_scorer import RiskScorer
+        return RiskScorer.load()
+    except Exception:
+        return None
+
 
 @st.cache_data
 def _cases_weekly() -> pd.DataFrame:
@@ -354,7 +364,7 @@ def _map_fig(mdf: pd.DataFrame) -> go.Figure:
         customdata=mdf[["cases", "full"]].values,
         hovertemplate=(
             "<b>%{customdata[1]}</b><br>"
-            "Total cases (1999–2020): <b>%{customdata[0]:,.0f}</b>"
+            "Total cases 1999–2020 (regional annual): <b>%{customdata[0]:,.0f}</b>"
             "<extra></extra>"
         ),
         showlegend=False,
@@ -375,9 +385,8 @@ def _map_fig(mdf: pd.DataFrame) -> go.Figure:
 
 # ── Right-panel content renderers ─────────────────────────────────────────────
 
-def _right_default(cases: pd.DataFrame, briefing: dict | None,
-                   regional: pd.DataFrame) -> None:
-    """Seasonal chart + latest briefing snippet + data limitations note."""
+def _right_default(cases: pd.DataFrame) -> None:
+    """Seasonal chart + XGBoost forecast preview + data limitations note."""
     st.markdown('<div class="plbl">Typical Dengue Season · avg 2012–2023</div>',
                 unsafe_allow_html=True)
 
@@ -413,47 +422,42 @@ def _right_default(cases: pd.DataFrame, briefing: dict | None,
     st.plotly_chart(fig_s, use_container_width=True,
                     config={"displayModeBar": False})
 
-    # ── Briefing snippet or bar chart fallback ────────────────────────────────
-    st.markdown('<div class="plbl" style="margin-top:6px">Latest AI Briefing</div>',
+    # ── XGBoost forecast preview ──────────────────────────────────────────────
+    st.markdown('<div class="plbl" style="margin-top:6px">Model Forecast — Next Week</div>',
                 unsafe_allow_html=True)
 
-    if briefing:
-        rl_b    = briefing.get("risk", {}).get("risk_level", "MEDIUM")
-        rc_b    = _RISK_COLOR.get(rl_b, P["amber"])
-        rl_txt  = _RISK_LABEL.get(rl_b, "MODERATE")
-        text    = briefing.get("briefing", "")
-        snippet = (text[:240].rsplit(" ", 1)[0] + "…") if len(text) > 240 else text
-        date_s  = briefing.get("generated_at", "")[:10]
-        st.markdown(f"""
-<div style="background:{P["panel"]};border:1px solid {rc_b}35;
-            border-left:3px solid {rc_b};border-radius:8px;
-            padding:9px 12px;font-size:0.73rem;color:{P["muted"]};
-            line-height:1.68;margin-bottom:2px;">
-  <span style="font-size:0.58rem;font-weight:700;text-transform:uppercase;
-               letter-spacing:0.10em;color:{rc_b};">{rl_txt} · {date_s}</span><br>
-  {snippet}
-  <br><span style="font-size:0.62rem;color:{P["muted"]}55;">
-    Open Report below for full analysis →
-  </span>
+    scorer = _load_scorer()
+    if scorer:
+        try:
+            latest_dt = cases["week_start"].max()
+            pred = scorer.predict(str(latest_dt.date()))
+            rl_p  = pred["risk_level"]
+            rc_p  = _RISK_COLOR.get(rl_p, P["amber"])
+            rl_pt = _RISK_LABEL.get(rl_p, "MODERATE")
+            pc    = pred["predicted_cases"]
+            fw    = pred["forecast_week"]
+            driver_label = pred["top_drivers"][0]["feature"].replace("_", " ") if pred["top_drivers"] else ""
+            st.markdown(f"""
+<div style="background:{rc_p}0D;border:1px solid {rc_p}35;border-left:3px solid {rc_p};
+            border-radius:8px;padding:10px 14px;display:flex;gap:18px;align-items:center;">
+  <div>
+    <div style="font-size:0.55rem;font-weight:700;text-transform:uppercase;
+                letter-spacing:0.12em;color:{rc_p};margin-bottom:2px;">Forecast risk</div>
+    <div style="font-size:1.1rem;font-weight:900;color:{P["text"]};line-height:1;">{rl_pt}</div>
+    <div style="font-size:0.60rem;color:{P["muted"]};margin-top:3px;">
+      As of latest data · Nov 2023</div>
+  </div>
+  <div style="border-left:1px solid {P["border"]};padding-left:16px;flex:1;">
+    <div style="font-size:0.60rem;color:{P["muted"]};">Estimated cases</div>
+    <div style="font-size:1.2rem;font-weight:800;color:{P["text"]};line-height:1.2;">{pc:,}</div>
+    <div style="font-size:0.60rem;color:{P["muted"]}55;margin-top:3px;">
+      Top signal: {driver_label} &nbsp;·&nbsp;
+      <span style="color:{P["teal"]}">Open Forecast for full analysis</span>
+    </div>
+  </div>
 </div>""", unsafe_allow_html=True)
-    else:
-        mdf_s = _map_df(regional).sort_values("cases").tail(6).copy()
-        fig_b = go.Figure(go.Bar(
-            x=mdf_s["cases"], y=mdf_s["label"], orientation="h",
-            marker=dict(
-                color=mdf_s["cases"],
-                colorscale=[[0, P["panel"]], [0.5, P["teal"]], [1, P["red"]]],
-                showscale=False,
-            ),
-            hovertemplate="%{y}: <b>%{x:,.0f}</b> cases<extra></extra>",
-        ))
-        fig_b.update_layout(
-            **_base_layout(height=148),
-            xaxis=dict(tickformat=",", gridcolor=P["border2"]),
-            yaxis=dict(tickfont=dict(size=8.5)),
-        )
-        st.plotly_chart(fig_b, use_container_width=True,
-                        config={"displayModeBar": False})
+        except Exception:
+            pass
 
     # ── Data limitations notice ───────────────────────────────────────────────
     st.markdown(f"""
@@ -534,8 +538,8 @@ def _rag_answer(question: str) -> tuple[str, str]:
             "Could not be fully verified — treat with care"
         )
         return res["answer"], meta
-    except Exception as e:
-        return f"RAG error ({type(e).__name__}): {e}", ""
+    except Exception:
+        return "Could not retrieve an answer. Please try again.", ""
 
 
 def _right_chat() -> None:
@@ -643,6 +647,131 @@ def _right_tips() -> None:
         f'Sources: WHO Dengue Guidelines · DOH Philippines · CDC</p>',
         unsafe_allow_html=True,
     )
+
+
+_FEATURE_LABELS: dict[str, str] = {
+    "cases_lag1":         "Cases — 1 week ago",
+    "cases_lag2":         "Cases — 2 weeks ago",
+    "cases_roll4":        "Cases — 4-week average",
+    "cases_lag4":         "Cases — 4 weeks ago",
+    "cases_lag8":         "Cases — 8 weeks ago",
+    "weather_rh_lag2":    "Humidity · 2-wk lag",
+    "weather_rh_lag1":    "Humidity · 1-wk lag",
+    "weather_precip_lag2":"Rainfall · 2-wk lag",
+    "weather_precip_lag1":"Rainfall · 1-wk lag",
+    "weather_t_max_lag1": "Max temp · 1-wk lag",
+    "weather_t_max_lag2": "Max temp · 2-wk lag",
+    "weather_t_min_lag1": "Min temp · 1-wk lag",
+    "trend_dengue":       "Search interest (dengue)",
+    "trend_dengue_lag1":  "Search interest · 1-wk lag",
+    "trend_fever_lag1":   "Search: dengue fever · 1-wk",
+    "news_count":         "News articles this week",
+    "news_count_lag1":    "News articles · 1-wk lag",
+    "month":              "Month of year",
+    "is_rainy_season":    "Rainy season (Jun–Nov)",
+    "epiweek":            "Epidemiological week",
+}
+
+
+def _right_forecast(cases: pd.DataFrame) -> None:
+    """XGBoost forecast panel — makes the model visible."""
+    st.markdown('<div class="plbl">XGBoost Risk Model Output</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<p style="font-size:0.62rem;color:{P["amber"]};margin:1px 0 6px;">'
+        f'The model\'s output using the last available data point (Nov 2023). '
+        f'Shows what signals were driving dengue risk at end of dataset.</p>',
+        unsafe_allow_html=True,
+    )
+
+    scorer = _load_scorer()
+    if scorer is None:
+        st.warning("Risk model unavailable.")
+        return
+
+    try:
+        latest_dt = cases["week_start"].max()
+        pred = scorer.predict(str(latest_dt.date()))
+    except Exception as e:
+        st.error(f"Prediction failed: {e}")
+        return
+
+    rl   = pred["risk_level"]
+    rc   = _RISK_COLOR.get(rl, P["amber"])
+    rlt  = _RISK_LABEL.get(rl, "MODERATE")
+    pc   = pred["predicted_cases"]
+    fw   = pred["forecast_week"]
+
+    # ── Risk + cases cards ────────────────────────────────────────────────────
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown(f"""
+<div style="background:{rc}0E;border:1px solid {rc}40;border-left:4px solid {rc};
+            border-radius:0 8px 8px 0;padding:10px 14px;">
+  <div style="font-size:0.55rem;font-weight:700;text-transform:uppercase;
+              letter-spacing:0.12em;color:{rc};margin-bottom:2px;">Risk Level</div>
+  <div style="font-size:1.1rem;font-weight:900;color:{P["text"]};line-height:1;">{rlt}</div>
+  <div style="font-size:0.60rem;color:{P["muted"]};margin-top:4px;">
+    As of latest data · Nov 2023</div>
+</div>""", unsafe_allow_html=True)
+    with c2:
+        st.metric("Estimated Cases", f"{pc:,}", help="Model estimate for the following week")
+
+    # ── 8-week lookback + forecast chart ─────────────────────────────────────
+    recent    = cases.tail(8).copy()
+    last_row  = recent.iloc[-1]
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=recent["week_start"], y=recent["cases"],
+        mode="lines+markers",
+        line=dict(color=P["teal"], width=2),
+        marker=dict(size=5, color=P["teal"]),
+        hovertemplate="<b>%{x|%d %b %Y}</b><br>%{y:,.0f} cases<extra></extra>",
+    ))
+    fig.add_trace(go.Scatter(
+        x=[last_row["week_start"], pd.Timestamp(fw)],
+        y=[last_row["cases"], pc],
+        mode="lines",
+        line=dict(color=rc, width=1.5, dash="dot"),
+        hoverinfo="skip", showlegend=False,
+    ))
+    fig.add_trace(go.Scatter(
+        x=[pd.Timestamp(fw)], y=[pc],
+        mode="markers",
+        marker=dict(size=10, color=rc, symbol="diamond"),
+        hovertemplate=f"<b>Forecast {fw}</b><br>{pc:,} cases<extra></extra>",
+    ))
+    fig.update_layout(
+        **_base_layout(height=165),
+        xaxis=dict(gridcolor=P["border2"], linecolor=P["border2"],
+                   tickformat="%d %b"),
+        yaxis=dict(gridcolor=P["border2"], linecolor=P["border2"],
+                   title=dict(text="cases/week", font=dict(size=8.5))),
+    )
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+    # ── Top signal drivers ────────────────────────────────────────────────────
+    st.markdown('<div class="plbl" style="margin-top:2px">What Is Driving This Forecast</div>',
+                unsafe_allow_html=True)
+
+    drivers = pred.get("top_drivers", [])[:4]
+    if drivers:
+        max_imp = drivers[0]["importance"] or 1.0
+        for d in drivers:
+            label   = _FEATURE_LABELS.get(d["feature"],
+                        d["feature"].replace("_", " ").title())
+            bar_pct = max(int(d["importance"] / max_imp * 100), 6)
+            imp_pct = d["importance"] * 100
+            st.markdown(f"""
+<div style="margin-bottom:7px;">
+  <div style="font-size:0.68rem;color:{P["text"]};font-weight:600;
+              margin-bottom:3px;">{label}</div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div style="background:{P["teal"]};height:5px;width:{bar_pct}%;
+                border-radius:3px;min-width:6px;flex-shrink:0;"></div>
+    <span style="font-size:0.60rem;color:{P["muted"]};white-space:nowrap;">
+      {imp_pct:.1f}% weight</span>
+  </div>
+</div>""", unsafe_allow_html=True)
 
 
 def _right_report(cases: pd.DataFrame) -> None:
@@ -793,7 +922,6 @@ def main() -> None:
 
     cases    = _cases_weekly()
     regional = _cases_regional()
-    briefing = _latest_briefing()
 
     now        = pd.Timestamp.now()
     risk_level, month_avg = _seasonal_risk(cases, now.month)
@@ -809,7 +937,7 @@ def main() -> None:
 <div class="app-header">
   <div class="brand">Sentinel<em>PH</em></div>
   <div class="tagline">Dengue Risk Monitor<br>Philippines</div>
-  <div class="data-badge">Based on 2012–2023 surveillance data</div>
+  <div class="data-badge">National 2012–2023 · Regional 1999–2020</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -847,7 +975,7 @@ def main() -> None:
 
     # ── Left: Map (always visible) ────────────────────────────────────────────
     with col_map:
-        st.markdown('<div class="plbl">Regional Dengue Burden · 1999–2020</div>',
+        st.markdown('<div class="plbl">Regional Burden · OpenDengue 1999–2020</div>',
                     unsafe_allow_html=True)
         mdf = _map_df(regional)
         if not mdf.empty:
@@ -862,15 +990,15 @@ def main() -> None:
 
         # Content block (switches based on active panel)
         if panel is None:
-            _right_default(cases, briefing, regional)
+            _right_default(cases)
         elif panel == "explore":
             _right_explore(cases)
         elif panel == "chat":
             _right_chat()
         elif panel == "tips":
             _right_tips()
-        elif panel == "report":
-            _right_report(cases)
+        elif panel == "forecast":
+            _right_forecast(cases)
 
         # Nav strip — always at the bottom of the right column
         st.markdown(
